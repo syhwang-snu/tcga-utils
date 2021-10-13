@@ -26,7 +26,7 @@ library(data.table)
 library(survival)
 library(survminer)
 library(progress)
-source('~/Documents/ER-UPR/utils/graph_ppt_utils.R')
+source('https://raw.githubusercontent.com/syhwang-snu/tcga-utils/main/graph_ppt_utils.R')
 
 
 # path for TOIL dataset 
@@ -146,7 +146,7 @@ ge_tcga <- function(target_gene, target_cancers = 'all', loading = TRUE) {
     left_join(tcga_types, by = c('detailed_category'='tcga_fullnames'))
   
   # Add tumor or normal info ( tumor = 0 , normal = 1 )
-  sample_exps <- sample_exps %>% mutate(tumor_sample_or_not = as.factor(ifelse(grepl('^(\\S*)-(\\S*)-(\\S*)-0(\\S*)$', sample), 'tumor', 'normal')))
+  sample_exps <- sample_exps %>% mutate(tumor_sample_or_not = as.factor(ifelse(grepl('^(\\S*)-(\\S*)-(\\S*)-0(\\S*)$', sample), 'tumor', 'normal'), levels = c('tumor', 'normal')))
   
   # Load to container
   ge <- list()
@@ -374,4 +374,18 @@ fit2dataframe <- function(fit){
   
   return(fit)
 }
+
+
+print(" TCGA-survival functions loaded !!! 
+
+      # 1. ge_tcga : get gene expression profiles of target gene 
+      # 2. ge_survival : survival analysis of target_gene, target_cancer pair at given expression threshold
+      # 3. ge_survival_allcancer : survival analysis of target gene for all cancers, output : list 
+      # 4. ge_survival_allcancer_genelists : survival analysis of genelist for all cancers, output : list 
+      # 5. survivalgraph2ppt : survival graphs to pptx (input : fit ,output : pptx file )
+      # 6. fit2dataframe : fit data to ordered dataframe by log rank p value 
+      
+      
+      ")
+
 
