@@ -146,7 +146,7 @@ ge_tcga <- function(target_gene, target_cancers = 'all', loading = TRUE) {
     left_join(tcga_types, by = c('detailed_category'='tcga_fullnames'))
   
   # Add tumor or normal info ( tumor = 0 , normal = 1 )
-  sample_exps <- sample_exps %>% mutate(tumor_sample_or_not = as.factor(ifelse(grepl('^(\\S*)-(\\S*)-(\\S*)-0(\\S*)$', sample), 'tumor', 'normal'), levels = c('tumor', 'normal')))
+  sample_exps <- sample_exps %>% mutate(tumor_sample_or_not = factor(ifelse(grepl('^(\\S*)-(\\S*)-(\\S*)-0(\\S*)$', sample), 'tumor', 'normal'), levels = c('tumor', 'normal')))
   
   # Load to container
   ge <- list()
