@@ -21,7 +21,7 @@
 
 
 # load libraries
-library(tidyverse)
+
 library(data.table)
 library(survival)
 library(survminer)
@@ -313,7 +313,7 @@ ge_survival <- function(target_gene,target_cancer, thrsld = 0.2, loading=TRUE, r
 
 
 
-ge_survival_allcancer <- function(target_gene, thrsld){
+ge_survival_allcancer <- function(target_gene, thrsld, return_plot = TRUE, regression = TRUE){
   # need tcga_types vector
   survp <- list()
   for(i in 1:length(tcga_types$tcga_symbols)){
@@ -321,7 +321,7 @@ ge_survival_allcancer <- function(target_gene, thrsld){
     tcga_type <- tcga_types$tcga_symbols[i]
     try(
       
-      {survp[[i]] <- ge_survival(target_gene = target_gene, target_cancer = tcga_type, thrsld = thrsld,return_plot = TRUE, regression = TRUE)}, silent = TRUE
+      {survp[[i]] <- ge_survival(target_gene = target_gene, target_cancer = tcga_type, thrsld = thrsld,return_plot = return_plot, regression = regression)}, silent = TRUE
       
     )
     
@@ -331,12 +331,12 @@ ge_survival_allcancer <- function(target_gene, thrsld){
   
 }
 
-ge_survival_allcancer_genelists <- function(target_genes, thrsld = 0.2){
+ge_survival_allcancer_genelists <- function(target_genes, thrsld = 0.2, return_plot = TRUE, regression = TRUE){
   survp <- list()
   for(i in 1:length(target_genes)){
     target_gene <- target_genes[i]
-    cat(i, ' / ', length(target_genes), '\n')
-    plts <- ge_survival_allcancer(target_gene, thrsld = thrsld)
+    # cat(i, ' / ', length(target_genes), '\n')
+    plts <- ge_survival_allcancer(target_gene, thrsld = thrsld, return_plot = return_plot, regression = regression)
     survp <- append(survp, plts)
   }
   
@@ -350,9 +350,10 @@ ge_survival_allcancer_genelists <- function(target_genes, thrsld = 0.2){
 survivalgraph2ppt <- function(fit, path = '~/Documents/ER-UPR/210923-ER-UPR-all-survival_plot-thrsld-02.pptx'){
   # get graphs for fit objects 
   l_surv <- list()
+  list_idxs <- fit$fitdf$list_idx
   for(i in 1:length(fit)){
-    
-    try(l_surv[[i]] <- fit[[i]]$survplot$plot)
+    idx <- list_idxs[i]
+    try(l_surv[[idx]] <- fit[[i]]$survplot$plot)
     
   }
   
@@ -376,7 +377,124 @@ fit2dataframe <- function(fit){
 }
 
 
-print(" TCGA-survival functions loaded !!! 
+
+ge_survival_parallel <- function(target_cancer, target_genes, thrsld = 0.2, return_plot = FALSE, regression = TRUE, path = '~/Documents/TCGA_survival_analysis/ALL/results/thrs50'){
+  # survival analysis for given gene lists for one cancer type. 
+  # further parallel for cancer types 
+  survp <- data.frame(gene = character(),
+                      target_cancer = character(),
+                      pval = numeric(),
+                      high_exp = numeric(),
+                      low_exp = numeric(),
+                      high_n = numeric(),
+                      low_n = numeric()
+    
+  )
+  name_rds <- paste0('_thrs_', thrsld*100, '.RDS')
+  name_csv <- paste0('_thrs_', thrsld*100, '.csv')
+  n<- 1
+  if(file.exists(file.path(path, paste0('ALL_survival_', target_cancer, name_rds)) )){
+    survp <- readRDS(file.path(path, paste0('ALL_survival_', target_cancer, name_rds)))
+    print(paste0('load survp ',nrow(survp)))
+
+    n <- nrow(survp) + 1
+    
+  }
+
+  
+  
+  for(i in n:length(target_genes)){
+    target_gene <- target_genes[i]
+    x <- NULL
+    try({
+        x <- ge_survival(target_gene = target_gene, target_cancer = target_cancer, thrsld = thrsld,return_plot = return_plot, regression = regression)
+
+      }, silent = TRUE)
+    
+    if(is.null(x)){x <- NA}
+    if(!is.na(x[1])){
+      survp <- rbindlist(list(survp, list(x$gene,x$target_cancer,x$pval, 
+                                            median(x$high_exp, na.rm = TRUE), median(x$low_exp, na.rm = TRUE),
+                                            x$high_n, x$low_n)), fill=TRUE)
+      
+    }else{
+      survp <- rbindlist(list(survp, as.list(c(target_gene,tcga_types$tcga_fullnames[tcga_types$tcga_symbols == target_cancer],
+                                               rep(NA,5)))), fill=TRUE)
+      
+    }
+    
+    if(i %% 1000 == 12|i == length(target_genes)){
+      
+      survp <- survp %>% arrange(pval)
+      saveRDS(survp, file = file.path(path, paste0('ALL_survival_', target_cancer, name_rds)))
+    }
+    
+  }
+  survp <- survp %>% arrange(pval)
+  survp$pval <- as.numeric(survp$pval)
+  survp$high_exp <- as.numeric(survp$high_exp)
+  survp$low_exp <- as.numeric(survp$high_low)
+  write.csv(survp, file.path(path,paste0('ALL_survival_', target_cancer, name_csv)),row.names = FALSE)
+  saveRDS(survp, file = file.path(path, paste0('ALL_survival_', target_cancer, name_rds)))
+  survp <- NULL
+  return(survp)
+  
+}
+
+
+
+gene_tcga_eval <- function(cancer, thrsld = 0.2){
+  if(!dir.exists(paste0('results-thrsld-',thrsld))){dir.create(paste0('results-thrsld-',thrsld))}
+  screen <- data.frame(gene = character(),
+                       pval = numeric(),
+                       exp_pval = numeric(),
+                       exp_fc = numeric(),
+                       high_n = numeric(),
+                       low_n = numeric()
+                       
+  )
+  name <- paste0('result-',cancer)
+  n <- 1
+  if(file.exists(file.path(paste0('results-thrsld-',thrsld), paste0('result-',cancer,'.RData') ))){
+    load(file.path(paste0('results-thrsld-',thrsld), paste0('result-',cancer,'.RData')))
+    print(paste0('load screen ',nrow(screen)))
+    n <- nrow(screen) + 1
+    
+  }
+  
+  samples <- fread(paste0("./data/TCGA-", cancer, ".htseq_fpkm.tsv.gz"),
+                   stringsAsFactors = FALSE, sep = "\t", skip = 0, nrows = 1, header = FALSE)
+  samples <- as.character(samples[, -1])
+  
+  for(i in n:length(genes)){
+    
+    gene <- genes[i]
+    fit <- ge_survival_loop(idx = i ,target_gene = gene, target_cancer = cancer, samples = samples,
+                            thrsld = thrsld, return_plot = FALSE, regression = FALSE)
+    if(is.null(fit)){fit <- NA}
+    if(!is.na(fit[1])){
+      screen <- rbindlist(list(screen, as.list(c(gene, fit$pval,fit$exp_pval,fit$exp_fc,fit$high_n,fit$low_n))), fill=TRUE)
+      
+    }else{
+      screen <- rbindlist(list(screen, as.list(c(gene,rep(NA,5)))), fill=TRUE)
+      
+    }
+    if(i %% 1000 == 10|i == length(genes)){
+      save(screen, file = file.path(paste0('results-thrsld-',thrsld), paste0('result-',cancer,'.RData')))
+    }
+  }
+  
+  write.csv(screen, file = file.path(paste0('results-thrsld-',thrsld), paste0('result-',cancer,'.csv')),row.names = FALSE)
+  save(screen, file = file.path(paste0('results-thrsld-',thrsld), paste0('result-',cancer,'.RData')))
+  screen <- NULL
+  return(screen)
+  
+}
+
+
+
+
+cat(" TCGA-survival functions loaded !!! 
 
       # 1. ge_tcga : get gene expression profiles of target gene 
       # 2. ge_survival : survival analysis of target_gene, target_cancer pair at given expression threshold
