@@ -350,10 +350,10 @@ ge_survival_allcancer_genelists <- function(target_genes, thrsld = 0.2, return_p
 survivalgraph2ppt <- function(fit, path = '~/Documents/ER-UPR/210923-ER-UPR-all-survival_plot-thrsld-02.pptx'){
   # get graphs for fit objects 
   l_surv <- list()
-  list_idxs <- fit$fitdf$list_idx
+  list_idxs <- as.numeric(fit$fitdf$list_idx)
   for(i in 1:length(fit)){
     idx <- list_idxs[i]
-    try(l_surv[[idx]] <- fit[[i]]$survplot$plot)
+    try(l_surv[[i]] <- fit[[idx]]$survplot$plot)
     
   }
   
