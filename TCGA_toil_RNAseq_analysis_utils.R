@@ -26,6 +26,7 @@ library(data.table)
 library(survival)
 library(survminer)
 library(progress)
+library(stringr)
 source('https://raw.githubusercontent.com/syhwang-snu/tcga-utils/main/graph_ppt_utils.R')
 
 
